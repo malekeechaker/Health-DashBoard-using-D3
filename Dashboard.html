@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Tableau de Bord de la Santé Mentale au Travail</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.7.0/d3.min.js"></script>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+
+    <style>
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+            }
+
+        p{
+            width: 700px;
+        }
+        .dark-mode {
+            background-color: #333; /* Gris foncé */
+            color: white!important; /* Texte en blanc */
+            }
+
+            .dark-mode text {
+                fill: white; /* Texte en blanc */
+            }
+        #genderFilter {
+            display: block;
+            margin: 0 auto;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 10px;
+        }
+        button{
+            margin: 0 auto;
+            left: 5%;
+            bottom: 10%;
+            padding: 10px;
+
+        }
+        #sombre{
+            display: block;
+        }
+
+        .chart {
+            background-color: #f4f4f4;
+            padding: 10px;
+            margin-top: 20px;
+        }
+        .bar {
+            fill: red;
+        }
+        .line {
+            fill: none;
+            stroke: steelblue;
+            stroke-width: 2px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8em;
+        }
+       
+        #charts {
+            display: flex;
+            justify-content: space-between;
+        }
+        #barChart {
+            width: 750px;
+        }
+        #lineChart{
+            width: 950px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Tableau de Bord de la santé et le mode de vie des professionnels</h1>
+        <p>Explorez les données sur des habitudes de sommeil, de l'activité physique et des conditions médicales dans le milieu professionnel.</p>
+        <!-- Menu déroulant pour le filtre de genre -->
+        <select id="genderFilter">
+            <option value="Tous">Tous</option>
+            <option value="Female">Femme</option>
+            <option value="Male">Homme</option>
+        </select>
+    </header>
+
+    <section id="visualizations">
+        <div id="charts">
+            <div id="lineChart"></div>
+            <div id="pieChart"></div>
+            <div id="pielegend"></div>
+        </div>
+        <div id="charts">
+            <div id="barChart"></div>
+            <div id="scatterPlot"></div>
+        </div>
+    </section>
+    <button id="Zoom">Zoom</button>
+    <button id="sombre" onclick="toggleDarkMode()">Mode Sombre</button>
+
+    <footer>
+        Source des données : "Sleep Health and Lifestyle Dataset" disponible dans Kaggle. Créé par Maleke Chaker IDS4.
+    </footer>
+
+    <script>
+        function updateVisualizations(gender) {
+            //nettoyer les graphs, affecter vide aux continues
+            d3.select("#barChart").html("");      
+            d3.select("#lineChart").html("");
+            d3.select("#pieChart").html("");
+            d3.select("#pielegend").html("");
+            d3.select("#scatterPlot").html("");
+            //ajouter les graphs
+            loadDataAndCreateBarChart(gender,0);
+            loadDataAndCreateLineChart(gender);
+            loadDataAndCreatePieChart(gender);
+            loadDataAndCreatescatterPlot(gender);
+        }
+
+        function loadDataAndCreateBarChart(gender, min) {
+            // Charger les données CSV
+            d3.csv("Sleep_health_and_lifestyle_dataset.csv").then(function(data) {
+                // Filtrer les données en fonction du genre spécifié, si différent de "Tous"
+                if (gender !== "Tous") {
+                    data = data.filter(d => d.Gender === gender);
+                }
+
+                // Créer un tableau de données pour le graphique à barres avec les occupations et les durées de sommeil correspondantes
+                let chartData = data.map(d => ({
+                    Occupation: d.Occupation,
+                    Sleep_Duration: +d.Sleep_Duration
+                }));
+
+                // Trier les données par ordre décroissant de durée de sommeil
+                chartData.sort((a, b) => b.Sleep_Duration - a.Sleep_Duration);
+
+                // Définir les marges et les dimensions du graphique
+                const margin = {top: 50, right: 40, bottom: 70, left: 40},
+                    width = 750 - margin.left - margin.right,
+                    height = 400 - margin.top - margin.bottom;
+
+                // Définir les échelles pour l'axe des x et l'axe des y
+                const x = d3.scaleBand().range([0, width]).padding(0.1);
+                const y = d3.scaleLinear().range([height, 0]);
+
+                // Sélectionner l'élément SVG pour le graphique à barres et définir ses attributs
+                const svgbar = d3.select("#barChart").append("svg")
+                            .attr("width", width + margin.left + margin.right)
+                            .attr("height", height + margin.top + margin.bottom)
+                            .append("g") //le regrouper
+                            .attr("transform", `translate(${margin.left},${margin.top})`); //decaler le groupe pour etre dans le centre
+
+                // Définir le domaine des échelles x et y
+                x.domain(chartData.map(d => d.Occupation));
+                y.domain([min, d3.max(chartData, d => d.Sleep_Duration)]);
+
+                // Ajouter l'axe des x au graphique et le formater
+                svgbar.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x))
+                .selectAll("text")
+                .attr("transform", "rotate(-45)")
+                .style("text-anchor", "end");
+
+                // Ajouter l'axe des y au graphique
+                svgbar.append("g").call(d3.axisLeft(y));
+
+                // Ajouter les barres au graphique
+                svgbar.selectAll(".bar")
+                .data(chartData)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d.Occupation))
+                .attr("y", d => y(d.Sleep_Duration))
+                .attr("width", x.bandwidth())
+                .attr("height", d => height - y(d.Sleep_Duration))
+                .transition() // Ajouter une transition
+                .duration(1500);
+
+                // Ajouter le titre du graphique
+                svgbar.append("text")
+                        .attr("x", width / 2)
+                        .attr("y", 0 - (margin.top / 2))
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "16px")
+                        .text("Relation entre La durée de sommeil et l'occupation");
+
+                // Ajouter l'étiquette de l'axe y
+                svgbar.append("text")
+                        .attr("transform", "rotate(-90)")
+                        .attr("y", 0 - (margin.left/2))
+                        .attr("x", 0 - (height / 2))
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "12px")
+                        .text("La durée de sommeil");
+
+                // Ajouter l'étiquette de l'axe x
+                svgbar.append("text")
+                        .attr("x", width / 2)
+                        .attr("y", height + margin.top + 20)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "12px")
+                        .text("L'occupation");
+
+                // Fonction pour changer la couleur des barres
+                changeBarColor("steelblue");
+                function changeBarColor(color) {
+                    svgbar.selectAll("rect")
+                        .transition()
+                        .duration(1500)
+                        .style("fill", color);
+                }
+
+                // Ajouter un événement de clic pour le zoom
+                d3.select("#Zoom").on("click", function() {
+                    // Supprimer le graphique existant
+                    d3.select("#barChart").selectAll("*").remove();
+
+                    // Redessiner le graphique avec les nouvelles données
+                    loadDataAndCreateBarChart(gender, 5);
+                });
+            });
+        }
+
+
+
+
+
+
+        function loadDataAndCreateLineChart(gender) {
+        // Charger les données CSV
+        d3.csv("Sleep_health_and_lifestyle_dataset.csv").then(function(data) {
+            if (gender !== "Tous") {
+                // Filtrer les données en fonction du genre spécifié
+                data = data.filter(d => d.Gender === gender);
+
+                // Regrouper les données par niveau d'activité physique et calculer la moyenne de la fréquence cardiaque
+                const groupedData = d3.group(data, d => +d.Physical_Activity_Level);
+                const averagedData = Array.from(groupedData, ([key, values]) => ({
+                    Physical_Activity_Level: key,
+                    Quality_of_Sleep: d3.mean(values, d => +d.Quality_of_Sleep)
+                })).sort((a, b) => a.Physical_Activity_Level - b.Physical_Activity_Level);
+
+                // Création du graphique
+                const margin = {top: 50, right: 40, bottom: 70, left: 60},
+                    width = 850 - margin.left - margin.right,
+                    height = 400 - margin.top - margin.bottom;
+
+                // Définition des échelles pour l'axe x et l'axe y
+                const x = d3.scaleLinear()
+                    .range([0, width])
+                    .domain(d3.extent(averagedData, d => d.Physical_Activity_Level));
+
+                const y = d3.scaleLinear()
+                    .range([height, 0])
+                    .domain([0, d3.max(averagedData, d => d.Quality_of_Sleep)]);
+
+                // Sélection de l'élément SVG pour le graphique linéaire et définition de ses attributs
+                const svg = d3.select("#lineChart")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                // Définition de la fonction pour dessiner la ligne du graphique
+                const line = d3.line()
+                    .x(d => x(d.Physical_Activity_Level))
+                    .y(d => y(d.Quality_of_Sleep));
+
+                // Ajout du chemin pour la ligne du graphique
+                const path = svg.append("path")
+                    .datum(averagedData)
+                    .attr("class", "line")
+                    .attr("d", line);
+
+                // Ajout des axes
+                svg.append("g")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x));
+
+                svg.append("g")
+                    .call(d3.axisLeft(y));
+
+                // Ajout des étiquettes des axes
+                svg.append("text")
+                    .attr("transform", "rotate(-90)")
+                    .attr("y", 0 - (margin.left/2))
+                    .attr("x", 0 - (height / 2))
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .text("La moyenne de la fréquence cardiaque");
+
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", height + margin.top + 20)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .text("le niveau d'activité physique");
+
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", 0 - (margin.top / 2))
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "16px")
+                    .text("Relation entre le niveau d'activité physique et la fréquence cardiaque");
+
+                // Appliquer la transition à la ligne du graphique
+                transition(path);
+
+            } else {
+                // Regrouper les données par genre
+                const nestedData = d3.nest()
+                    .key(function(d) { return d.Gender; })
+                    .entries(data);
+
+                // Pour chaque groupe de genre, regrouper par niveau d'activité physique et calculer la moyenne de la fréquence cardiaque
+                nestedData.forEach(function(genderGroup) {
+                    const groupedByActivityLevel = d3.group(genderGroup.values, d => +d.Physical_Activity_Level);
+                    genderGroup.averagedData = Array.from(groupedByActivityLevel, ([key, values]) => ({
+                        Physical_Activity_Level: key,
+                        Quality_of_Sleep: d3.mean(values, d => +d.Quality_of_Sleep)
+                    })).sort((a, b) => a.Physical_Activity_Level - b.Physical_Activity_Level);
+                });
+
+                // Création du graphique
+                const margin = {top: 50, right: 40, bottom: 70, left: 60},
+                    width = 750 - margin.left - margin.right,
+                    height = 400 - margin.top - margin.bottom;
+
+                const x = d3.scaleLinear()
+                    .range([0, width])
+                    .domain(d3.extent(nestedData[0].averagedData, d => d.Physical_Activity_Level));
+
+                const y = d3.scaleLinear()
+                    .range([height, 0])
+                    .domain([0, d3.max(nestedData, d => d3.max(d.averagedData, dd => dd.Quality_of_Sleep))]);
+
+                const svg = d3.select("#lineChart")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const line = d3.line()
+                    .x(d => x(d.Physical_Activity_Level))
+                    .y(d => y(d.Quality_of_Sleep));
+
+                // Ajout des lignes au graphique
+                nestedData.forEach(function(genderGroup,i) {
+                    const path = svg.append("path")
+                        .datum(genderGroup.averagedData)
+                        .attr("class", "line")
+                        .attr("d", line)
+                        .style("stroke", genderGroup.key === "Female"  ? "red" : "steelblue")
+                        .on("mouseover", function() {
+                            // Réduire l'opacité de toutes les lignes sauf celle survolée
+                            d3.selectAll(".line")
+                                .transition()
+                                .duration(50)
+                                .style("opacity", function(_, j) {
+                                    return i === j ? 1 : 0.3; // Laisser l'opacité à 1 pour la ligne survolée, 0.3 pour les autres
+                                });
+                            d3.select(this)
+                                .style("opacity", 1)
+                                .style("stroke-width", "5px");
+                        })
+                        .on("mouseout", function() {
+                            // Restaurer l'opacité normale de toutes les lignes
+                            d3.selectAll(".line")
+                                .transition()
+                                .duration(50)
+                                .style("opacity", 1)
+                            d3.select(this)
+                                .style("stroke-width", "2px")
+                        });
+
+                    // Ajout de la légende
+                    var legendSpace = width / nestedData.length; // spacing for the legend
+                    svg.append("text")
+                        .attr("x", width - 100) // Ajuster l'emplacement de la légende
+                        .attr("y", 210 + i * 20) // Ajuster l'emplacement de la légende
+                        .attr("class", "legend")
+                        .style("fill", genderGroup.key === "Female"  ? "red" : "steelblue") // Utiliser la couleur de la ligne
+                        .text(genderGroup.key); // Afficher le genre
+
+                    // Ajout des rectangles à la légende
+                    svg.append("rect")
+                        .attr("x", width - 30) // Ajuster l'emplacement du rectangle
+                        .attr("y", 200 + i * 20) // Ajuster l'emplacement du rectangle
+                        .attr("width", 10)
+                        .attr("height", 10)
+                        .style("fill", genderGroup.key === "Female"  ? "red" : "steelblue"); // Utiliser la couleur de la ligne
+
+                    transition(path);
+                });
+
+                // Ajout des axes
+                svg.append("g")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x));
+
+                svg.append("g")
+                    .call(d3.axisLeft(y));
+
+                // Ajout des étiquettes des axes
+                svg.append("text")
+                    .attr("transform", "rotate(-90)")
+                    .attr("y", 0 - (margin.left/2))
+                    .attr("x", 0 - (height / 2))
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .text("La qualité de sommeil");
+
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", height + margin.top + 20)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .text("le niveau d'activité physique");
+
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", 0 - (margin.top / 2))
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "16px")
+                    .text("Relation entre le niveau d'activité physique et La qualité de sommeil");
+            }
+        });
+
+        // Fonction de transition pour animer la ligne du graphique
+        function transition(path) {
+            path.transition()
+                .duration(3000) // Durée en millisecondes
+                .attrTween("stroke-dasharray", tweenDash); // Applique la fonction tweenDash
+        }
+
+        // Fonction pour créer un chemin en pointillé
+        function tweenDash() {
+            var l = this.getTotalLength(), // Longueur totale du chemin
+                i = d3.interpolateString("0," + l, l + "," + l); // Interpole entre 0 et la longueur totale
+            return function(t) {
+                return i(t); // Retourne la valeur interpolée à chaque instant 't'
+            };
+        }
+    }
+
+
+
+
+
+
+    function loadDataAndCreatePieChart(gender) {
+        // Charger les données CSV
+        d3.csv("Sleep_health_and_lifestyle_dataset.csv").then(function(data) {
+            if (gender !== "Tous") {
+                // Filtrer les données en fonction du genre spécifié
+                data = data.filter(d => d.Gender === gender);
+            }
+
+            // Grouper les données par BMI_Category
+            const groupedData = d3.group(data, d => d.BMI_Category);
+            const pieChartData = Array.from(groupedData, ([key, values]) => ({
+                BMI_Category: key,
+                count: values.length
+            }));
+
+            // Créer le diagramme circulaire
+            const width = 400;
+            const height = 400;
+            const radius = (Math.min(width, height) / 2) - 30;
+
+            const svg = d3.select("#pieChart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width / 2},${height / 2})`);
+
+            const color = d3.scaleOrdinal()
+                .domain(pieChartData.map(d => d.BMI_Category))
+                .range(d3.schemeCategory10);
+
+            const pie = d3.pie()
+                .value(d => d.count);
+
+            const arc = d3.arc()
+                .innerRadius(0)
+                .outerRadius(radius);
+
+            const arcs = svg.selectAll("arc")
+                .data(pie(pieChartData))
+                .enter()
+                .append("g")
+                .attr("class", "arc")
+                .on("mouseover", function(event, d) {
+                    // Réduire l'opacité de toutes les lignes sauf celle survolée
+                    d3.selectAll("g.arc")
+                        .transition()
+                        .duration(50)
+                        .style("opacity", function(_, j) {
+                            return d === j ? 1 : 0.3; // Laisser l'opacité à 1 pour la ligne survolée, 0.3 pour les autres
+                        });
+                    d3.select(this)
+                        .style("opacity", 1)
+                        .style("stroke-width", "5px");
+                })
+
+                .on("mouseout", function(event, d) {
+                    // Restaurer l'opacité normale de toutes les lignes
+                    d3.selectAll("g.arc")
+                        .transition()
+                        .duration(50)
+                        .style("opacity", 1);
+                    d3.select(this)
+                        .style("stroke-width", "2px");
+                });
+
+            arcs.append("path")
+                .attr("fill", d => color(d.data.BMI_Category))
+                .attr("d", arc);
+
+            // Créer la légende
+            const legend = d3.select("#pielegend")
+                .append("svg")
+                .attr("width", 200)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", "translate(0,20)");
+
+            const legendRects = legend.selectAll("rect")
+                .data(pieChartData)
+                .enter()
+                .append("rect")
+                .attr("width", 10)
+                .attr("height", 10)
+                .attr("y", (d, i) => i * 20)
+                .attr("fill", d => color(d.BMI_Category));
+
+            const legendTexts = legend.selectAll("text")
+                .data(pieChartData)
+                .enter()
+                .append("text")
+                .attr("x", 15)
+                .attr("y", (d, i) => i * 20 + 10)
+                .text(d => d.BMI_Category);
+
+            // Ajouter les étiquettes de pourcentage au milieu des tranches
+            arcs.append("text")
+                .style("font-size", "10px")
+                .attr("transform", d => `translate(${arc.centroid(d)})`)
+                .attr("text-anchor", "middle")
+                .text(d => `${((d.endAngle - d.startAngle) / (2 * Math.PI) * 100).toFixed(1)}%`)
+                .on("mouseover", function(event, d) {
+                    d3.select(this)
+                        .style("font-size", "20px");
+                })
+                .on("mouseout", function(event, d) {
+                    d3.select(this)
+                        .style("font-size", "10px");
+                });
+
+            // Ajouter le titre du diagramme circulaire
+            svg.append("text")
+                .attr("x", 0)
+                .attr("y", 0 - radius - 10)
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .text("La dispersion des catégories BMI");
+        });
+    }
+
+
+
+        function loadDataAndCreatescatterPlot(gender){
+            const margin = {top: 50, right: 40, bottom: 90, left: 80},
+                width = 650 - margin.left - margin.right,
+                height = 400 - margin.top - margin.bottom;
+
+            // Ajout de l'élément SVG au conteneur #scatterPlot dans le DOM
+            var svg = d3.select("#scatterPlot")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            // Lecture des données CSV
+            d3.csv("Sleep_health_and_lifestyle_dataset.csv").then(function(data) {
+                // Mapping des données nécessaires pour le tracé
+                let plot_data = data.map(d => ({
+                    Age: +d.Age,
+                    Physical_Activity_Level: +d.Physical_Activity_Level,
+                    Gender: d.Gender
+                }));
+
+                // Tri des données par âge et niveau d'activité physique
+                plot_data.sort(function(a,b){ return b.Age - a.Age});
+                plot_data.sort(function(a,b){ return b.Physical_Activity_Level - a.Physical_Activity_Level});
+
+                // Ajout de l'axe des abscisses (x)
+                var x = d3.scaleLinear()
+                    .domain([15, d3.max(data, d => d.Age)]) // Plage de données de l'âge
+                    .range([0, width]);
+                svg.append("g")
+                    .attr("transform", "translate(0," + height + ")")
+                    .call(d3.axisBottom(x));
+
+                // Ajout de l'axe des ordonnées (y)
+                var y = d3.scaleLinear()
+                    .domain([0, d3.max(data, d => d.Physical_Activity_Level)]) // Plage de données du niveau d'activité physique
+                    .range([height, 0]);
+                svg.append("g")
+                    .call(d3.axisLeft(y));
+
+                // Ajout des points sur le graphique de dispersion
+                svg.append('g')
+                    .selectAll("circle")
+                    .data(plot_data)
+                    .enter()
+                    .append("circle")
+                    .attr("cx", function(d) { return x(d.Age); }) // Position en x en fonction de l'âge
+                    .attr("cy", function(d) { return y(d.Physical_Activity_Level); }) // Position en y en fonction du niveau d'activité physique
+                    .attr("r", 5) // Rayon du cercle
+                    .each(function(d) {
+                        // Ajout d'une info-bulle pour chaque cercle
+                        d3.select(this).append("title")
+                            .text("Age: " + d.Age + "\nPhysical Activity Level: " + d.Physical_Activity_Level);
+                    })
+                    .style("fill", function(d) {
+                        // Coloration des points en rouge pour les femmes et en bleu pour les hommes
+                        return d.Gender === "Female" ? "red" : "steelblue";
+                    });
+
+                // Ajout du titre du graphique
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", 0 - (margin.top / 2))
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "16px")
+                    .text("Relation entre l'âge et le niveau d'activité physique");
+
+                // Ajout de l'étiquette de l'axe des ordonnées
+                svg.append("text")
+                    .attr("transform", "rotate(-90)")
+                    .attr("y", 0 - (margin.left/2))
+                    .attr("x", 0 - (height / 2))
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .text("Niveau d'activité physique");
+
+                // Ajout de l'étiquette de l'axe des abscisses
+                svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", height + margin.top + 20)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .text("Âge");
+            });
+        }
+
+        // Exécute la fonction updateVisualizations lors du chargement de la page
+        document.addEventListener("DOMContentLoaded", function() {
+            updateVisualizations("Tous");
+        });
+
+        // Met à jour les visualisations en fonction du genre sélectionné dans le menu déroulant
+        document.getElementById("genderFilter").addEventListener("change", function() {
+            updateVisualizations(this.value);
+        });
+
+        // Active ou désactive le mode sombre de la page
+        function toggleDarkMode() {
+            document.body.classList.toggle("dark-mode");
+        }
+
+    </script>
+</body>
+</html>
