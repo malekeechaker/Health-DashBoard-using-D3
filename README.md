@@ -23,6 +23,11 @@ Ce tableau de bord interactif présente des visualisations relatives à la sant�
 ## Sources des données
 Les données utilisées dans ce tableau de bord proviennent du jeu de données "Sleep Health and Lifestyle Dataset" disponible sur Kaggle. Pour plus d'informations, consultez la source originale sur Kaggle.
 
+## Installation
+1. Clonez le dépôt sur votre machine locale :
+   ```bash
+   git clone https://github.com/yourusername/your-repo-name.git
+   
 ## Contributeurs
 - Créé par [Maleke Chaker IDS4].
 
